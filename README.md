@@ -274,7 +274,11 @@ If the repository provides a type-checking or linting script, run those checks a
 
 ## Configuration
 
-> **This section is a placeholder for the final configuration guide and will be updated as implementation progresses.**
+See [`supabase/DEPLOYMENT_READINESS.md`](supabase/DEPLOYMENT_READINESS.md) for
+the current Windows local verification steps, Auth redirect configuration,
+Edge Function secrets, migration order, Storage setup, and frontend deployment
+checklist. Database schema and trusted first-administrator setup are in
+[`supabase/README.md`](supabase/README.md).
 
 Configuration may include:
 
@@ -303,7 +307,10 @@ Only public client configuration belongs in variables exposed to the frontend.
 
 Trusted backend secrets must be configured separately in the appropriate server-side environment.
 
-The final variable names and instructions will be documented once the implementation is stable.
+The app accepts `VITE_SUPABASE_PUBLISHABLE_KEY` (recommended) and the legacy
+`VITE_SUPABASE_ANON_KEY`. Both are public browser credentials. The local
+database, Auth, Storage, Edge Function, and deployment instructions are in
+[`supabase/DEPLOYMENT_READINESS.md`](supabase/DEPLOYMENT_READINESS.md).
 
 ---
 
@@ -334,7 +341,9 @@ Database configuration must also include:
 - Row Level Security (RLS) policies.
 - Tests verifying access permissions.
 
-The final migration commands and schema documentation will be added when the database implementation is ready.
+Migration order, local verification, RLS notes, and trusted project-owner
+setup are documented in [`supabase/README.md`](supabase/README.md). Do not run
+local reset commands against a linked or hosted project.
 
 ---
 

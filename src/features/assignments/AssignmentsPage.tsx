@@ -127,12 +127,18 @@ export function AssignmentsPage() {
     setPendingId(assignment.id)
     setError('')
     setNotice('')
-    const result = await supabase.from('assignment_progress').upsert({
-      assignment_id: assignment.id,
-      user_id: user.id,
+    const progressFields = {
       completed,
       completed_at: completed ? new Date().toISOString() : null,
-    }, { onConflict: 'assignment_id,user_id' }).select().single()
+    }
+    const result = current
+      ? await supabase.from('assignment_progress').update(progressFields)
+        .eq('assignment_id', assignment.id).eq('user_id', user.id).select().single()
+      : await supabase.from('assignment_progress').insert({
+        ...progressFields,
+        assignment_id: assignment.id,
+        user_id: user.id,
+      }).select().single()
     setPendingId('')
     if (result.error) {
       setError(result.error.message)

@@ -1,7 +1,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(32);
+SELECT plan(40);
 SELECT ok((
   SELECT pg_catalog.bool_and(relation.relrowsecurity)
   FROM pg_catalog.pg_class AS relation
@@ -24,7 +24,8 @@ INSERT INTO auth.users (
   ('10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'admin-a@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Admin A"}', now(), now()),
   ('10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'student-b@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Student B"}', now(), now()),
   ('10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'invitee@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Invitee"}', now(), now()),
-  ('10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'teacher-invitee@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Teacher Invitee"}', now(), now());
+  ('10000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'teacher-invitee@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Teacher Invitee"}', now(), now()),
+  ('10000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated', 'unassigned@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Unassigned"}', now(), now());
 
 INSERT INTO public.classrooms (id, name, owner_id) VALUES
   ('20000000-0000-4000-8000-000000000001', 'Test room A', '10000000-0000-4000-8000-000000000003'),
@@ -89,6 +90,19 @@ SELECT throws_ok(
   $$INSERT INTO public.memberships (user_id, classroom_id, role) VALUES (auth.uid(), '20000000-0000-4000-8000-000000000002', 'student')$$,
   '42501', NULL, 'student cannot move into a second classroom'
 );
+SELECT throws_ok(
+  $$INSERT INTO public.lesson_contributions (lesson_id, submitted_by, content, status, reviewed_by, reviewed_at) VALUES ('40000000-0000-4000-8000-000000000001', auth.uid(), 'Unreviewed student publication', 'approved', auth.uid(), now())$$,
+  '42501', NULL, 'student cannot submit a note as already approved'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.assignment_progress (assignment_id, user_id, completed) VALUES ('70000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', true)$$,
+  '42501', NULL, 'student cannot create progress for another user'
+);
+SELECT throws_ok(
+  $$UPDATE public.memberships SET role = 'admin' WHERE user_id = auth.uid()$$,
+  '42501', NULL, 'student cannot modify their own role'
+);
+SELECT is((WITH changed AS (UPDATE public.assignments SET title = 'Cross-class edit' WHERE id = '70000000-0000-4000-8000-000000000002' RETURNING id) SELECT count(*) FROM changed), 0::bigint, 'student cannot edit an assignment in another classroom');
 SELECT is((WITH changed AS (UPDATE public.assignment_progress SET completed = true, completed_at = now() WHERE id = '80000000-0000-4000-8000-000000000001' RETURNING id) SELECT count(*) FROM changed), 1::bigint, 'student updates their own progress');
 SELECT is((WITH changed AS (UPDATE public.assignment_progress SET completed = true, completed_at = now() WHERE id = '80000000-0000-4000-8000-000000000002' RETURNING id) SELECT count(*) FROM changed), 0::bigint, 'student cannot update another student progress');
 SELECT is((SELECT count(*) FROM public.assignment_progress WHERE id = '80000000-0000-4000-8000-000000000002'), 0::bigint, 'student cannot read another classroom progress');
@@ -97,6 +111,7 @@ SELECT is((SELECT count(*) FROM public.lesson_attachments WHERE id = '60000000-0
 
 SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', true);
 SELECT is((SELECT count(*) FROM public.lesson_contributions WHERE status = 'pending'), 2::bigint, 'teacher can read pending notes in their classroom');
+SELECT is((WITH changed AS (UPDATE public.lessons SET title = 'Cross-class edit' WHERE id = '40000000-0000-4000-8000-000000000002' RETURNING id) SELECT count(*) FROM changed), 0::bigint, 'teacher cannot edit a lesson in another classroom');
 SELECT is((WITH changed AS (UPDATE public.lesson_contributions SET status = 'approved', reviewed_by = auth.uid(), reviewed_at = now() WHERE id = '50000000-0000-4000-8000-000000000001' RETURNING id) SELECT count(*) FROM changed), 1::bigint, 'teacher reviews a student note');
 SELECT is((WITH changed AS (UPDATE public.lesson_contributions SET status = 'approved', reviewed_by = auth.uid(), reviewed_at = now() WHERE id = '50000000-0000-4000-8000-000000000004' RETURNING id) SELECT count(*) FROM changed), 0::bigint, 'teacher cannot review their own note');
 SELECT is((SELECT count(*) FROM public.assignment_progress WHERE id = '80000000-0000-4000-8000-000000000001'), 1::bigint, 'teacher can read classroom progress');
@@ -118,6 +133,11 @@ SELECT throws_ok(
   $$INSERT INTO public.memberships (user_id, classroom_id, role) VALUES ('10000000-0000-4000-8000-000000000006', '20000000-0000-4000-8000-000000000001', 'admin')$$,
   '42501', NULL, 'administrator cannot grant another administrator role through membership insert'
 );
+
+SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000007', true);
+SELECT is((SELECT count(*) FROM public.memberships WHERE user_id = auth.uid()), 0::bigint, 'signed-in account without a membership has no classroom membership');
+SELECT is((SELECT count(*) FROM public.classrooms), 0::bigint, 'account without a membership cannot read any classroom');
+SELECT is((SELECT count(*) FROM public.lessons), 0::bigint, 'account without a membership cannot read lessons');
 
 SET LOCAL ROLE anon;
 SELECT throws_ok('SELECT * FROM public.profiles', '42501', NULL, 'unauthenticated role has no profile table grant');

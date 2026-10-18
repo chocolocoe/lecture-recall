@@ -1,9 +1,11 @@
 # Supabase database and security setup
 
 The migrations in this directory define the database security boundary for the
-application. Phase 1 content screens still use `src/lib/demoData.ts`; Phase 3
-connects Supabase Auth and verified profile/classroom membership, but lesson,
-assignment, member-directory, and note data remain preview data.
+application. Supabase Auth and verified profile/classroom membership are
+connected. Lesson, subject, assignment, contribution, member-directory, and
+private attachment pages issue live Supabase requests. The dashboard now reads
+its metrics and activity from the current classroom; failures display an error
+instead of substitute sample data.
 
 ## Schema and roles
 
@@ -53,7 +55,7 @@ No project ref or database connection is configured in this checkout. The
 migrations have **not** been applied to any database.
 
 For a fresh, disposable local Supabase stack, install the Supabase CLI and
-Docker, then run:
+Docker Desktop, then run from the repository root:
 
 ```sh
 supabase start
@@ -104,9 +106,9 @@ Object keys must have this exact shape:
 {classroom UUID}/{lesson UUID}/{attachment UUID}
 ```
 
-The browser workflow in a later phase must first insert the authorized
-`lesson_attachments` metadata row (including its UUID path), then upload the
-object using the same user's JWT. Storage RLS requires a matching,
+The browser workflow first inserts the authorized `lesson_attachments`
+metadata row (including its UUID path), then uploads the object using the same
+user's JWT. Storage RLS requires a matching,
 RLS-visible metadata row for upload and read. No overwrite policy is provided.
 For deletion, remove the object through the Storage API before deleting its
 metadata or parent lesson; SQL deletion of metadata does not delete Storage
@@ -139,8 +141,8 @@ uses the Edge Function's server-only `SUPABASE_SERVICE_ROLE_KEY` to invite the
 account and assign its one classroom membership. Set the server-only
 `APP_SITE_URL` Edge Function secret to the deployed frontend origin. Never add
 either secret to `VITE_` variables. Deploy this function only after migrations
-00003 and 00004 have been applied. The members page's directory remains sample
-data; only invitation submission is connected.
+00003 and 00004 have been applied. The members page reads classroom
+memberships and profiles; invitation submission uses this function.
 
 Disable public signup in the hosted Supabase Auth settings as well as in the
 local `config.toml`. Supabase Dashboard invitations and the app's checked

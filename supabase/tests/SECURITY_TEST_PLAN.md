@@ -24,12 +24,15 @@ supabase test db
 | Unauthenticated `anon` | No grant to application tables. |
 | Trusted database owner | Used only for fixture setup and the global membership uniqueness assertion; never represents browser access. |
 
-The automated assertions include a duplicate-membership constraint check,
+The 40 automated assertions include a duplicate-membership constraint check,
 cross-classroom profile/classroom/lesson/note/progress/attachment metadata
-reads, unauthorized lesson and note writes, self-promotion and classroom
-movement attempts, student-owned progress mutation, teacher review, admin
-membership creation, denied admin-role assignment, and an unauthenticated table
-access check.
+reads and lesson/assignment writes, unauthorized lesson and note writes,
+approved-on-submit denial, self-promotion and classroom movement attempts,
+student-owned progress mutation and forged progress denial, teacher review,
+admin membership creation, denied admin-role assignment, unassigned-account
+access checks, and an unauthenticated table access check. The suite is
+currently unexecuted because the local Supabase CLI and Docker runtime are not
+installed in the reviewed environment.
 
 ## Storage API checks
 
