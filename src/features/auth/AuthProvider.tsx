@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const [profileResult, membershipResult] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
+      supabase.from('profiles').select('id, username, full_name, display_name, avatar_url, created_at, updated_at').eq('id', currentUser.id).maybeSingle(),
       supabase.from('memberships').select('*').eq('user_id', currentUser.id).maybeSingle(),
     ])
     if (id !== requestId.current) return
@@ -138,23 +138,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearIdentity, loadIdentity])
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (username: string, password: string) => {
     if (!supabase) return { error: new Error('Supabase is not configured. Add the project URL and publishable key.') }
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error }
+    const { data, error } = await supabase.functions.invoke<{
+      session?: { access_token: string; refresh_token: string }
+      error?: string
+    }>('username-login', { body: { username, password } })
+    if (error) {
+      const context = (error as Error & { context?: Response }).context
+      let responseBody: { error?: unknown } | null = null
+      if (context && typeof context.json === 'function') {
+        try { responseBody = await context.json() as { error?: unknown } } catch { /* response may not contain JSON */ }
+      }
+      const status = context?.status
+      const safeMessage = status === 401 || status === 400
+        ? typeof responseBody?.error === 'string' ? responseBody.error : 'Invalid username or password.'
+        : status && status >= 500
+          ? 'Sign-in is temporarily unavailable. Please try again shortly.'
+          : 'Unable to reach the sign-in service. Check your connection and try again.'
+      return { error: new Error(safeMessage) }
+    }
+    if (data?.error || !data?.session?.access_token || !data.session.refresh_token) {
+      return { error: new Error(data?.error ?? 'Sign-in failed. Please try again.') }
+    }
+    const { error: sessionError } = await supabase.auth.setSession(data.session)
+    return { error: sessionError }
   }, [])
 
   const signOut = useCallback(async () => {
     if (!supabase) return { error: new Error('Supabase is not configured.') }
     const { error } = await supabase.auth.signOut()
-    return { error }
-  }, [])
-
-  const requestPasswordReset = useCallback(async (email: string) => {
-    if (!supabase) return { error: new Error('Supabase is not configured.') }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login?flow=recovery`,
-    })
     return { error }
   }, [])
 
@@ -167,6 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={{
     user, profile, membership, classroom, loading, identityLoading,
     configured: supabaseConfigured, identityError, authMessage, refreshIdentity,
-    signIn, signOut, requestPasswordReset, updatePassword,
+    signIn, signOut, updatePassword,
   }}>{children}</AuthContext.Provider>
 }

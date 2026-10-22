@@ -19,8 +19,8 @@ export interface Database {
   public: {
     Tables: {
       profiles: Table<
-        { id: string; email: string; full_name: string; display_name: string | null; avatar_url: string | null; created_at: string; updated_at: string },
-        { id: string; email: string; full_name: string; display_name?: string | null; avatar_url?: string | null; created_at?: string; updated_at?: string },
+        { id: string; email: string; username: string; full_name: string; display_name: string | null; avatar_url: string | null; created_at: string; updated_at: string },
+        { id: string; email: string; username: string; full_name: string; display_name?: string | null; avatar_url?: string | null; created_at?: string; updated_at?: string },
         { full_name?: string; display_name?: string | null; avatar_url?: string | null }
       >
       classrooms: Table<
@@ -39,14 +39,14 @@ export interface Database {
         { name?: string; color?: string | null }
       >
       lessons: Table<
-        { id: string; classroom_id: string; subject_id: string; title: string; description: string | null; lesson_date: string; created_by: string; created_at: string; updated_at: string },
-        { id?: string; classroom_id: string; subject_id: string; title: string; description?: string | null; lesson_date: string; created_by: string; created_at?: string; updated_at?: string },
-        { subject_id?: string; title?: string; description?: string | null; lesson_date?: string }
+        { id: string; classroom_id: string; subject_id: string; title: string; description: string | null; lesson_date: string; published: boolean; created_by: string; created_at: string; updated_at: string },
+        { id?: string; classroom_id: string; subject_id: string; title: string; description?: string | null; lesson_date: string; published?: boolean; created_by: string; created_at?: string; updated_at?: string },
+        { subject_id?: string; title?: string; description?: string | null; lesson_date?: string; published?: boolean }
       >
       lesson_contributions: Table<
-        { id: string; lesson_id: string; submitted_by: string; content: string; status: Database['public']['Enums']['contribution_status']; reviewed_by: string | null; reviewed_at: string | null; created_at: string },
-        { id?: string; lesson_id: string; submitted_by: string; content: string; status?: Database['public']['Enums']['contribution_status']; reviewed_by?: string | null; reviewed_at?: string | null; created_at?: string },
-        { status?: Database['public']['Enums']['contribution_status']; reviewed_by?: string | null; reviewed_at?: string | null }
+        { id: string; lesson_id: string; submitted_by: string; title: string | null; content: string; status: Database['public']['Enums']['contribution_status']; reviewed_by: string | null; reviewed_at: string | null; created_at: string },
+        { id?: string; lesson_id: string; submitted_by: string; title?: string | null; content: string; status?: Database['public']['Enums']['contribution_status']; reviewed_by?: string | null; reviewed_at?: string | null; created_at?: string },
+        { title?: string | null; content?: string; status?: Database['public']['Enums']['contribution_status']; reviewed_by?: string | null; reviewed_at?: string | null }
       >
       lesson_attachments: Table<
         { id: string; classroom_id: string; lesson_id: string; contribution_id: string | null; file_name: string; file_path: string; file_size: number; mime_type: string; uploaded_by: string; created_at: string },
@@ -63,9 +63,34 @@ export interface Database {
         { id?: string; assignment_id: string; user_id: string; completed?: boolean; completed_at?: string | null; notes?: string | null },
         { assignment_id?: string; user_id?: string; completed?: boolean; completed_at?: string | null; notes?: string | null }
       >
+      permission_registry: Table<
+        { permission_key: string; category: string; label: string; description: string; sensitive: boolean },
+        { permission_key: string; category: string; label: string; description: string; sensitive?: boolean },
+        never
+      >
+      classroom_role_permissions: Table<
+        { classroom_id: string; role: Database['public']['Enums']['user_role']; permission_key: string; allowed: boolean },
+        { classroom_id: string; role: Database['public']['Enums']['user_role']; permission_key: string; allowed: boolean },
+        { allowed?: boolean }
+      >
+      member_permission_overrides: Table<
+        { id: number; classroom_id: string; user_id: string; permission_key: string; effect: string; resource_id: string | null; updated_at: string; updated_by: string },
+        { id?: never; classroom_id: string; user_id: string; permission_key: string; effect: string; resource_id?: string | null; updated_at?: string; updated_by: string },
+        never
+      >
+      permission_audit_log: Table<
+        { id: number; classroom_id: string; actor_id: string; target_user_id: string; permission_key: string; resource_id: string | null; old_effect: string | null; new_effect: string | null; changed_at: string },
+        never,
+        never
+      >
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      delete_academic_item: { Args: { p_kind: string; p_id: string }; Returns: undefined }
+      save_member_permissions: { Args: { p_classroom_id: string; p_user_id: string; p_overrides: Json }; Returns: undefined }
+      has_effective_permission: { Args: { p_classroom_id: string; p_permission_key: string; p_resource_id?: string | null }; Returns: boolean }
+      save_role_permission_template: { Args: { p_classroom_id: string; p_role: Database['public']['Enums']['user_role']; p_permissions: Json }; Returns: undefined }
+    }
     Enums: {
       user_role: 'admin' | 'teacher' | 'student'
       contribution_status: 'pending' | 'approved' | 'rejected'

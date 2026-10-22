@@ -73,7 +73,7 @@ The following describes the intended feature set. Availability depends on the cu
 ### Classroom Management
 
 - Create and configure a classroom.
-- Invite members through a controlled onboarding process.
+- Create username/password accounts through an authenticated classroom administrator.
 - Assign classroom roles.
 - Organize subjects and learning resources.
 - Keep classroom information private to authorized members.
@@ -106,8 +106,8 @@ The following describes the intended feature set. Availability depends on the cu
 
 ### Accounts and Profiles
 
-- Secure authentication.
-- Invitation-based account onboarding.
+- Username/password authentication through Supabase Auth.
+- Administrator-managed account creation and password reset without email delivery.
 - Profile information and display names.
 - Password management through supported authentication flows.
 - Role-based access to classroom features.
@@ -134,7 +134,7 @@ Lecture Recall uses three intended classroom roles.
 
 | Role | Intended permissions |
 |---|---|
-| **Admin** | Manage classroom membership, invitations, classroom settings, and administrative actions. |
+| **Admin** | Manage all classroom accounts, membership, classroom settings, and academic data. |
 | **Teacher** | Manage lessons and assignments, and review student contributions. |
 | **Student** | View classroom resources, contribute notes, and track personal assignment progress. |
 
@@ -152,7 +152,7 @@ A typical classroom workflow looks like this:
 
 1. **Set up the application:** A host configures the source code, backend services, database, and deployment.
 2. **Create a classroom:** An authorized administrator establishes the classroom and its initial settings.
-3. **Invite members:** The administrator invites classmates and assigns appropriate roles.
+3. **Create accounts:** The administrator creates usernames, temporary passwords, and roles.
 4. **Record lessons:** Teachers or authorized members add daily lesson information.
 5. **Share resources:** Members access approved notes and relevant attachments.
 6. **Contribute notes:** Students submit supplementary material for review.
@@ -185,7 +185,7 @@ The implementation may evolve as the project develops. Refer to the actual depen
 Lecture Recall separates the user interface from backend services.
 
 - **Frontend:** Displays lessons, assignments, profiles, and classroom management interfaces.
-- **Authentication:** Handles sign-in, invitations, and account recovery.
+- **Authentication:** Handles username/password sign-in and authenticated password changes.
 - **Database:** Stores classroom membership, lessons, contributions, assignments, and progress.
 - **Storage:** Stores uploaded learning resources in private storage.
 - **Server-side operations:** Handle privileged actions that must not be performed using public frontend credentials.
@@ -285,7 +285,7 @@ Configuration may include:
 - Frontend environment variables.
 - Supabase project URL and public client key.
 - Database migrations and access policies.
-- Authentication redirect URLs and invitation settings.
+- Authentication site URL and local username-login function configuration.
 - Private storage bucket settings.
 - File upload restrictions.
 - Server-side function configuration.
@@ -349,15 +349,16 @@ local reset commands against a linked or hosted project.
 
 ## Authentication and Classroom Setup
 
-Lecture Recall is intended to use a controlled invitation workflow.
+Lecture Recall uses administrator-created username accounts. There are no
+user-facing email, invitation, verification, or password-recovery workflows.
 
-1. An authorized administrator supplies the invitee's required information.
-2. The backend creates or issues an invitation using a trusted authentication flow.
-3. The invitee completes the supported account setup process.
-4. The account is associated with the correct classroom and role.
-5. The backend verifies that the account cannot join another classroom or change its own privileges without authorization.
+1. An authorized administrator supplies a username, temporary password, and role.
+2. A protected Edge Function creates the Supabase Auth user and classroom membership.
+3. The user signs in with their username and password and can change their password in Settings.
+4. The backend verifies that the account cannot join another classroom or change its own privileges.
 
-The application should use supported password recovery and invitation-expiration mechanisms.
+Supabase may store an internal email-shaped Auth identifier for compatibility.
+It is never shown to users or exposed through browser profile queries.
 
 Never distribute shared passwords or store plaintext passwords. Privileged account creation and role assignment must not rely on untrusted frontend input.
 
@@ -393,7 +394,7 @@ The project should follow these principles:
 - **Trusted privileged operations:** Perform sensitive actions in secure server-side code.
 - **Protected credentials:** Never commit secrets to source control.
 - **Input validation:** Validate user input on the backend as well as in the interface.
-- **Safe authentication:** Use supported authentication, invitation, and recovery mechanisms.
+- **Safe authentication:** Use Supabase Auth with server-side username mapping and authenticated password changes.
 - **Private storage:** Protect attachments with access policies.
 - **Auditable review actions:** Record the reviewer and time for contribution decisions.
 - **Tested isolation:** Verify that users from one classroom cannot access another classroom's data.
@@ -554,15 +555,15 @@ The roadmap describes planned development, not a guarantee that every item is al
 - [ ] Establish the frontend and development tooling.
 - [ ] Implement the database schema and constraints.
 - [ ] Configure Row Level Security and authorization tests.
-- [ ] Implement authentication and invitation-based onboarding.
-- [ ] Add classroom membership and role management.
-- [ ] Build the lesson archive and lesson detail pages.
-- [ ] Implement student note contributions and moderation.
-- [ ] Add private lesson attachments.
-- [ ] Implement assignments and due dates.
-- [ ] Add individual assignment progress tracking.
-- [ ] Complete security and end-to-end testing.
-- [ ] Document configuration and deployment.
+- [x] Implement administrator-managed username/password accounts.
+- [x] Add classroom membership and role management.
+- [x] Build the lesson archive and lesson detail pages.
+- [x] Implement student note contributions and moderation.
+- [x] Add private lesson attachments.
+- [x] Implement assignments, due dates, and student responses.
+- [x] Add individual assignment progress tracking.
+- [x] Add database security and authenticated local integration tests.
+- [x] Document configuration and deployment.
 - [ ] Publish a reproducible demonstration deployment.
 
 Progress should be updated as features become functional.

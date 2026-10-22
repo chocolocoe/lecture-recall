@@ -64,15 +64,14 @@ serve(async (req) => {
     .maybeSingle()
   if (lessonError || !lesson) return json({ error: 'Lesson not found or not accessible.' }, 404)
 
-  const { data: membership, error: membershipError } = await supabase
-    .from('memberships')
-    .select('role')
-    .eq('classroom_id', lesson.classroom_id)
-    .eq('user_id', authData.user.id)
-    .maybeSingle()
-  if (membershipError) return json({ error: 'Unable to verify classroom role.' }, 403)
-  if (!membership || !['teacher', 'admin'].includes(membership.role)) {
-    return json({ error: 'A classroom teacher or administrator must review notes.' }, 403)
+  const permissionKeys = ['contributions.review', status === 'approved' ? 'contributions.approve' : 'contributions.reject']
+  for (const permissionKey of permissionKeys) {
+    const { data: allowed, error: permissionError } = await supabase.rpc('has_effective_permission', {
+      p_classroom_id: lesson.classroom_id,
+      p_permission_key: permissionKey,
+      p_resource_id: contribution.id,
+    })
+    if (permissionError || allowed !== true) return json({ error: 'This account does not have permission to review the note.' }, 403)
   }
 
   const { data: reviewed, error: reviewError } = await supabase

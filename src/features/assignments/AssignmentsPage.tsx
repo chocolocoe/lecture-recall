@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarClock, Check, Circle, Pencil, Plus } from 'lucide-react'
+import { CalendarClock, Check, Circle, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { PageHeading } from '@/components/ui/PageHeading'
@@ -8,6 +8,7 @@ import { useCurrentRole } from '@/app/RoleContext'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/utils'
 import type { Assignment, AssignmentProgress, Subject } from '@/types'
+import { deleteAcademicItem } from '@/lib/academic'
 
 type AssignmentForm = { title: string; description: string; subject_id: string; due_date: string }
 const toLocalDateInput = (value: string) => {
@@ -28,6 +29,9 @@ export function AssignmentsPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pendingId, setPendingId] = useState('')
+  const [deletingId, setDeletingId] = useState('')
+  const [submissionBusyId, setSubmissionBusyId] = useState('')
+  const [submissionDrafts, setSubmissionDrafts] = useState<Record<string, string>>({})
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Assignment | null>(null)
   const [saving, setSaving] = useState(false)
@@ -147,6 +151,35 @@ export function AssignmentsPage() {
     setProgress((currentRows) => [...currentRows.filter((item) => item.assignment_id !== assignment.id), result.data])
   }
 
+  async function saveSubmission(assignment: Assignment) {
+    if (!supabase || !user) return
+    const current = progress.find((item) => item.assignment_id === assignment.id && item.user_id === user.id)
+    setSubmissionBusyId(assignment.id)
+    setError('')
+    setNotice('')
+    const fields = { notes: (submissionDrafts[assignment.id] ?? current?.notes ?? '').trim() || null }
+    const result = current
+      ? await supabase.from('assignment_progress').update(fields).eq('id', current.id).eq('user_id', user.id).select().single()
+      : await supabase.from('assignment_progress').insert({ ...fields, assignment_id: assignment.id, user_id: user.id }).select().single()
+    setSubmissionBusyId('')
+    if (result.error) { setError('Assignment submission could not be saved: ' + result.error.message); return }
+    setProgress((rows) => [...rows.filter((item) => item.assignment_id !== assignment.id || item.user_id !== user.id), result.data])
+    setNotice('Assignment response saved.')
+  }
+
+  async function removeAssignment(assignment: Assignment) {
+    if (!window.confirm(`Delete “${assignment.title}”? Student progress records for this assignment will also be deleted.`)) return
+    setDeletingId(assignment.id)
+    setError('')
+    try {
+      await deleteAcademicItem('assignment', assignment.id)
+      setAssignments((rows) => rows.filter((row) => row.id !== assignment.id))
+      setProgress((rows) => rows.filter((row) => row.assignment_id !== assignment.id))
+      setNotice('Assignment and its student progress records deleted.')
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not delete the assignment.') }
+    finally { setDeletingId('') }
+  }
+
   const dueSoon = assignments.filter((item) => new Date(item.due_date).getTime() >= Date.now() && new Date(item.due_date).getTime() <= Date.now() + 7 * 86400000).length
   const totalStudentAssignments = studentCount * assignments.length
   const pendingProgress = staff ? Math.max(0, totalStudentAssignments - completedCount) : todoCount
@@ -165,7 +198,7 @@ export function AssignmentsPage() {
         const overdue = !done && new Date(assignment.due_date).getTime() < Date.now()
         const assignmentRows = progress.filter((item) => item.assignment_id === assignment.id)
         const assignmentCompleted = assignmentRows.filter((item) => item.completed).length
-        return <Card key={assignment.id} className="!p-4 sm:!p-5"><div className="flex items-start gap-4">{!staff && <button type="button" disabled={pendingId === assignment.id} onClick={() => void toggleProgress(assignment)} aria-label={done ? 'Mark ' + assignment.title + ' incomplete' : 'Mark ' + assignment.title + ' complete'} className={'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition disabled:opacity-50 ' + (done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-transparent hover:border-cyan-700')}>{done ? <Check size={14} /> : <Circle size={14} />}</button>}<div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-cyan-900">{subjectNames.get(assignment.subject_id ?? '') ?? 'General'}</span><span className={'rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (done ? 'bg-emerald-50 text-emerald-800' : overdue ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800')}>{done ? 'Completed' : overdue ? 'Overdue' : 'Pending'}</span></div><h2 className={'mt-1 font-bold ' + (done ? 'text-slate-500 line-through' : 'text-slate-900')}>{assignment.title}</h2><p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-slate-500">{assignment.description}</p><p className={'mt-3 flex items-center gap-1.5 text-xs font-medium ' + (overdue ? 'text-rose-700' : 'text-slate-500')}><CalendarClock size={14} /> Due {formatDateTime(assignment.due_date)}</p>{staff && <div className="mt-4 border-t border-slate-100 pt-3"><p className="text-xs text-slate-500">Student progress</p><p className="mt-1 text-xs font-semibold text-slate-700">{assignmentCompleted} completed of {studentCount} students</p></div>}</div>{staff && <Button size="sm" variant="ghost" aria-label={'Edit ' + assignment.title} onClick={() => openEdit(assignment)}><Pencil size={15} /> Edit</Button>}</div></Card>
+        return <Card key={assignment.id} className="!p-4 sm:!p-5"><div className="flex items-start gap-4">{!staff && <button type="button" disabled={pendingId === assignment.id} onClick={() => void toggleProgress(assignment)} aria-label={done ? 'Mark ' + assignment.title + ' incomplete' : 'Mark ' + assignment.title + ' complete'} className={'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition disabled:opacity-50 ' + (done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-transparent hover:border-cyan-700')}>{done ? <Check size={14} /> : <Circle size={14} />}</button>}<div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-cyan-900">{subjectNames.get(assignment.subject_id ?? '') ?? 'General'}</span><span className={'rounded-full px-2 py-0.5 text-[10px] font-semibold ' + (done ? 'bg-emerald-50 text-emerald-800' : overdue ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800')}>{done ? 'Completed' : overdue ? 'Overdue' : 'Pending'}</span></div><h2 className={'mt-1 font-bold ' + (done ? 'text-slate-500 line-through' : 'text-slate-900')}>{assignment.title}</h2><p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-slate-500">{assignment.description}</p><p className={'mt-3 flex items-center gap-1.5 text-xs font-medium ' + (overdue ? 'text-rose-700' : 'text-slate-500')}><CalendarClock size={14} /> Due {formatDateTime(assignment.due_date)}</p>{staff && <div className="mt-4 border-t border-slate-100 pt-3"><p className="text-xs text-slate-500">Student progress</p><p className="mt-1 text-xs font-semibold text-slate-700">{assignmentCompleted} completed of {studentCount} students</p>{assignmentRows.filter((item) => item.notes).map((item) => <p key={item.id} className="mt-2 rounded bg-slate-50 p-2 text-xs text-slate-600">{item.notes}</p>)}</div>}{!staff && <div className="mt-4 border-t border-slate-100 pt-3"><label htmlFor={'assignment-response-' + assignment.id} className="mb-1.5 block text-xs font-semibold text-slate-700">Your assignment response</label><textarea id={'assignment-response-' + assignment.id} maxLength={20000} value={submissionDrafts[assignment.id] ?? row?.notes ?? ''} onChange={(event) => setSubmissionDrafts((drafts) => ({ ...drafts, [assignment.id]: event.target.value }))} className="min-h-20 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Write your response or progress note" /><Button size="sm" variant="outline" disabled={submissionBusyId === assignment.id} onClick={() => void saveSubmission(assignment)} className="mt-2">{submissionBusyId === assignment.id ? 'Saving…' : 'Save response'}</Button></div>}</div>{staff && <div className="flex items-center gap-1"><button type="button" title={'Edit ' + assignment.title} aria-label={'Edit ' + assignment.title} onClick={() => openEdit(assignment)} className="rounded p-2 text-slate-500 hover:bg-slate-100"><Pencil size={15} /></button><button type="button" title={'Delete ' + assignment.title} aria-label={'Delete ' + assignment.title} disabled={deletingId === assignment.id} onClick={() => void removeAssignment(assignment)} className="rounded p-2 text-rose-600 hover:bg-rose-50 disabled:opacity-50"><Trash2 size={15} /></button></div>}</div></Card>
       })}</div> : <Card className="py-12 text-center"><h2 className="font-semibold text-slate-800">No assignments yet</h2><p className="mt-1 text-sm text-slate-500">{staff ? 'Create an assignment for your classroom.' : 'Assignments from your classroom will appear here.'}</p></Card>}
   </>
 }

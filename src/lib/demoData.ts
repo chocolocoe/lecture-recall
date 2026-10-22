@@ -11,10 +11,10 @@ export const demoSubjects: Subject[] = [
 ]
 
 export const demoLessons: Lesson[] = [
-  { id: 'lesson-1', classroom_id: demoClassroom.id, subject_id: 'biology', title: 'How cells make energy', description: 'Cellular respiration · mitochondria · ATP', lesson_date: '2026-10-16', created_by: 'demo-teacher', created_at: '2026-10-16', updated_at: '2026-10-16' },
-  { id: 'lesson-2', classroom_id: demoClassroom.id, subject_id: 'mathematics', title: 'Quadratic equations', description: 'Factoring and the quadratic formula', lesson_date: '2026-10-15', created_by: 'demo-teacher', created_at: '2026-10-15', updated_at: '2026-10-15' },
-  { id: 'lesson-3', classroom_id: demoClassroom.id, subject_id: 'history', title: 'The Silk Road', description: 'Trade routes and cultural exchange', lesson_date: '2026-10-14', created_by: 'demo-teacher', created_at: '2026-10-14', updated_at: '2026-10-14' },
-  { id: 'lesson-4', classroom_id: demoClassroom.id, subject_id: 'biology', title: 'DNA and inheritance', description: 'Genes, chromosomes, and traits', lesson_date: '2026-10-12', created_by: 'demo-teacher', created_at: '2026-10-12', updated_at: '2026-10-12' },
+  { id: 'lesson-1', classroom_id: demoClassroom.id, subject_id: 'biology', title: 'How cells make energy', description: 'Cellular respiration · mitochondria · ATP', lesson_date: '2026-10-16', published: true, created_by: 'demo-teacher', created_at: '2026-10-16', updated_at: '2026-10-16' },
+  { id: 'lesson-2', classroom_id: demoClassroom.id, subject_id: 'mathematics', title: 'Quadratic equations', description: 'Factoring and the quadratic formula', lesson_date: '2026-10-15', published: true, created_by: 'demo-teacher', created_at: '2026-10-15', updated_at: '2026-10-15' },
+  { id: 'lesson-3', classroom_id: demoClassroom.id, subject_id: 'history', title: 'The Silk Road', description: 'Trade routes and cultural exchange', lesson_date: '2026-10-14', published: true, created_by: 'demo-teacher', created_at: '2026-10-14', updated_at: '2026-10-14' },
+  { id: 'lesson-4', classroom_id: demoClassroom.id, subject_id: 'biology', title: 'DNA and inheritance', description: 'Genes, chromosomes, and traits', lesson_date: '2026-10-12', published: true, created_by: 'demo-teacher', created_at: '2026-10-12', updated_at: '2026-10-12' },
 ]
 
 export const demoAssignments: Assignment[] = [
@@ -24,17 +24,17 @@ export const demoAssignments: Assignment[] = [
 ]
 
 export const demoContributions: LessonContribution[] = [
-  { id: 'contribution-1', lesson_id: 'lesson-1', submitted_by: 'demo-student-1', content: 'The inner membrane folds are called cristae. They increase the surface area for ATP production.', status: 'pending', created_at: '2026-10-17T10:20:00' },
-  { id: 'contribution-2', lesson_id: 'lesson-2', submitted_by: 'demo-student-2', content: 'For equations that do not factor easily, use the quadratic formula.', status: 'pending', created_at: '2026-10-17T09:05:00' },
+  { id: 'contribution-1', lesson_id: 'lesson-1', submitted_by: 'demo-student-1', title: 'Mitochondrial structure', content: 'The inner membrane folds are called cristae. They increase the surface area for ATP production.', status: 'pending', created_at: '2026-10-17T10:20:00' },
+  { id: 'contribution-2', lesson_id: 'lesson-2', submitted_by: 'demo-student-2', title: 'Using the quadratic formula', content: 'For equations that do not factor easily, use the quadratic formula.', status: 'pending', created_at: '2026-10-17T09:05:00' },
 ]
 
 export const demoMembers: Array<{ profile: Profile; membership: Membership }> = [
-  ['demo-teacher', 'Maya Chen', 'maya.chen@example.test', 'teacher'],
-  ['demo-student-1', 'Aarav Patel', 'aarav.patel@example.test', 'student'],
-  ['demo-student-2', 'Leah Morgan', 'leah.morgan@example.test', 'student'],
-  ['demo-student-3', 'Noah Williams', 'noah.williams@example.test', 'student'],
-  ['demo-admin', 'Jordan Lee', 'jordan.lee@example.test', 'admin'],
-].map(([id, full_name, email, role]) => ({
-  profile: { id, full_name, email, created_at: '2026-01-01', updated_at: '2026-01-01' },
+  ['demo-teacher', 'Maya Chen', 'maya.chen', 'teacher'],
+  ['demo-student-1', 'Aarav Patel', 'aarav.patel', 'student'],
+  ['demo-student-2', 'Leah Morgan', 'leah.morgan', 'student'],
+  ['demo-student-3', 'Noah Williams', 'noah.williams', 'student'],
+  ['demo-admin', 'Jordan Lee', 'jordan.lee', 'admin'],
+].map(([id, full_name, username, role]) => ({
+  profile: { id, full_name, username, created_at: '2026-01-01', updated_at: '2026-01-01' },
   membership: { id: `membership-${id}`, user_id: id, classroom_id: demoClassroom.id, role: role as Membership['role'], joined_at: '2026-01-01' },
 }))

@@ -41,32 +41,27 @@ SELECT owner_id, id, 'admin'::public.user_role
 FROM new_classroom;
 ```
 
-Classroom administrators can add students and teachers, but cannot add or
-promote anyone to administrator. They cannot change an existing membership's
-`user_id`, `classroom_id`, or `role` through UPDATE. To replace a student with a
-teacher, an administrator can remove the non-admin membership and add the
-teacher membership. Assigning another administrator remains a trusted project
-owner action. Removing the last administrator is intentionally unavailable to
-classroom admins to avoid an accidental lockout.
+Classroom administrators can create and promote student, teacher, and admin
+members. Membership operations are classroom-scoped; members cannot change
+their own role or assign themselves to a classroom. A classroom must retain at
+least one admin, and the current admin cannot use member controls on their own
+account.
 
 ## Applying migrations
 
-No project ref or database connection is configured in this checkout. The
-migrations have **not** been applied to any database.
-
-For a fresh, disposable local Supabase stack, install the Supabase CLI and
-Docker Desktop, then run from the repository root:
+For local development, keep the existing database and apply only pending
+migrations from the repository root:
 
 ```sh
-supabase start
-supabase db reset   # local only: recreates the local database and applies migrations
-supabase test db
+npx supabase start
+npx supabase migration up --local
+npx supabase test db
 ```
 
-`supabase db reset` is destructive to local database contents. Do not point it
-at a linked/remote project or use it where local data must be kept.
+The migration command applies pending migrations without recreating the local
+database. The database test suite is transactional and does not reset it.
 
-For an existing project, first take a database backup and inspect existing
+For a deployed project, first take a database backup and inspect existing
 memberships, cross-classroom references, contribution review fields, progress
 timestamps, and attachment metadata. Migration `00003` deliberately stops if existing rows
 violate the one-classroom rule, new composite foreign keys, review-state checks,
@@ -110,6 +105,11 @@ The browser workflow first inserts the authorized `lesson_attachments`
 metadata row (including its UUID path), then uploads the object using the same
 user's JWT. Storage RLS requires a matching,
 RLS-visible metadata row for upload and read. No overwrite policy is provided.
+Students can attach files only to their own pending or rejected notes. They can
+remove those files only while the note remains unapproved; teachers and
+administrators can open classroom review attachments. Migration `00009` also
+adds note titles and allows an author to correct a rejected note by resubmitting
+it as pending.
 For deletion, remove the object through the Storage API before deleting its
 metadata or parent lesson; SQL deletion of metadata does not delete Storage
 bytes. Use authenticated downloads or short-lived signed URLs. Never make this
@@ -119,35 +119,85 @@ The bucket checks the supplied MIME type and byte size, but it does not inspect
 file signatures or scan content. A later upload workflow should validate file
 contents and use safe download headers before production use.
 
-## Authentication and invitations
+## Username accounts and classroom administration
 
-The frontend uses Supabase Auth password sign-in, session restoration, sign
-out, password recovery, and invite-link password setup. Set
+The frontend uses Supabase Auth sessions, with username/password sign-in through
+the `username-login` Edge Function. Migration `00005` derives usernames for
+existing profiles from the local part of the stored Auth identifier; new
+accounts receive an administrator-selected username. Supabase Auth retains an
+internal email-shaped identifier, but migration `00006` removes browser access
+to the profile email column and the app never displays it. Members can change
+their display name and password, while their username is read-only. Classroom
+admins can change other members' usernames and set a temporary password through
+an authenticated server-side operation. No email delivery or recovery link is
+used.
+
+Apply pending migrations to a running local database without resetting it:
+
+```sh
+npx supabase migration up --local
+```
+
+Start the local stack and functions with `npx supabase start` and
+`npx supabase functions serve`. To create a default account on a fresh local
+installation, run `.\supabase\scripts\bootstrap-local-admin.ps1` from the
+repository root. It creates `admin` / `admin` and a local classroom only when no
+administrator exists. If an admin already exists, it reports that and makes no
+changes. Change the default password immediately in Settings. These credentials
+are for local development only and must never be used in a deployed project.
+The bootstrap Edge Function refuses non-local Supabase URLs. Never put a
+service-role key in a `VITE_` variable; the Supabase CLI provides it only to
+Edge Functions.
+
+If an administrator already exists, its account and classroom are preserved.
+Sign in with its migrated username (the existing local admin is `admin.local`)
+and use Settings to change its password. For a username change, create a second
+administrator account, sign in as that administrator, and edit the original
+account from Members; self-renaming is blocked to reduce lockout risk. A second
+administrator can also set a temporary password if the existing password is
+unknown.
+
+Run authenticated login and account-management checks from a second terminal
+while `functions serve` is running:
+
+```powershell
+npm.cmd run test:local-auth
+```
+
+The test creates temporary accounts and classrooms with unique names, exercises
+all three role sessions and protected Edge Function actions, then deletes only
+the temporary records it created. It reads the local service-role key from the
+Supabase CLI process output without printing or storing it.
+
+`admin-create-member` lets a verified classroom admin create student, teacher,
+or admin accounts with a username and temporary password. `admin-member-action`
+lets admins update another member's profile/role, set a temporary password, or
+delete that account. These functions validate the caller's role and classroom
+membership before using server-side Auth administration. Database RLS still
+protects classroom data and membership changes. Migrations `00005` and `00006`
+preserve existing Auth identities, classroom memberships, and content.
+
+Set
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the app environment;
 the legacy `VITE_SUPABASE_ANON_KEY` is accepted. Only the public/publishable key
 belongs in Vite variables.
 
-For each deployed app origin, add `/login?flow=invite` and
-`/login?flow=recovery` to Supabase Auth's allowed redirect URLs and set the
-Auth Site URL appropriately. Local development uses
-`http://localhost:5173/login?flow=invite` and
-`http://localhost:5173/login?flow=recovery`. Configure email templates and an
-SMTP provider before sending real invitations or recovery emails.
+Set the Auth Site URL to the app origin. There are no invitation, verification,
+or recovery email flows; administrators create accounts and reset passwords
+inside the application.
 
-`functions/invite-member` is the only app invitation sender. It validates the
-caller with Auth, verifies the caller's `admin` membership for the requested
-classroom using that caller's JWT, accepts only student/teacher roles, then
-uses the Edge Function's server-only `SUPABASE_SERVICE_ROLE_KEY` to invite the
-account and assign its one classroom membership. Set the server-only
-`APP_SITE_URL` Edge Function secret to the deployed frontend origin. Never add
-either secret to `VITE_` variables. Deploy this function only after migrations
-00003 and 00004 have been applied. The members page reads classroom
-memberships and profiles; invitation submission uses this function.
+Deploy `username-login`, `admin-create-member`, `admin-member-action`, and
+`review-contribution` after applying the current migrations through `00018`.
+Keep `bootstrap-local-admin` local; do not
+deploy it to a hosted project. The `username-login` function is public by design and
+uses Auth password verification with generic failure messages and server-side
+rate limiting. The admin functions verify the caller's Auth session and
+classroom admin membership. Never add a service-role key to `VITE_` variables.
 
-Disable public signup in the hosted Supabase Auth settings as well as in the
-local `config.toml`. Supabase Dashboard invitations and the app's checked
-Edge Function are invitation paths; the browser has no public signup UI.
-The first administrator must still be provisioned by the trusted project
+Keep global signup disabled in hosted Supabase Auth settings as well as in the
+local `config.toml`. New application accounts are created by an authenticated
+classroom admin through the checked Edge Function; there is no public signup
+UI. The first administrator must still be provisioned by the trusted project
 owner procedure above.
 
 ## Edge Function
@@ -162,16 +212,48 @@ variables.
 
 ## Security tests and limits
 
-Run `supabase test db` against a disposable local stack to execute
+Run `npx supabase test db` against the local stack to execute
 `tests/database/security_rls.test.sql`. It covers student, teacher,
 administrator, unauthenticated, and cross-classroom database access, including
-role escalation, note review, progress updates, metadata visibility, and the
-one-classroom constraint.
+role escalation, note review, progress updates, username immutability, private
+Auth identifiers, metadata visibility, and the one-classroom constraint. The
+tests run transactionally; do not reset the database to run them.
 
 The pgTAP suite does not upload or download real Storage objects. Follow the
 manual API checks in `tests/SECURITY_TEST_PLAN.md` with separate test accounts
 and the local Storage endpoint before treating file access as verified. SQL
 review and a successful build alone do not establish that the policies are
 secure. Run the manual authentication checks in `tests/AUTH_TEST_PLAN.md` and
-authenticated end-to-end tests against a running Supabase stack. The Phase 3
-checklist is not yet executed against this project.
+authenticated end-to-end tests against a running Supabase stack.
+
+## Granular classroom permissions
+
+Migrations `00010`–`00018` add a typed permission registry, explicit classroom
+role defaults, per-member allow/deny overrides, protected role templates, and
+an append-only audit log. Defaults preserve the existing Admin, Teacher, and
+Student role boundaries; new classrooms receive the same defaults. Admin role
+checks remain authoritative for account, role, classroom-settings, and
+permission-management operations.
+
+For a non-admin member, an override on one resource takes precedence over a
+classroom-wide override, which takes precedence over the role template. At the
+same scope, an explicit deny wins over the role default. The effective
+permission function fails closed for invalid permissions and missing
+membership. Permission changes use the authenticated `save_member_permissions`
+and `save_role_permission_template` RPCs; direct writes to permission and audit
+tables are revoked. Record-scoped grants are checked against the target
+classroom. Permission changes are evaluated on each database request, so active
+sessions do not need token edits or reauthentication.
+
+RLS and Storage policies enforce these permissions alongside classroom and
+resource constraints. Some grants remain narrower than their name: for
+example, a note author can still only edit their own unreviewed note, and a
+student upload grant applies only to the selected lesson. Admin-only member,
+classroom, role, and permission-management capabilities cannot be delegated.
+Lesson publishing is enforced by a database trigger and the `published` column;
+existing lessons default to published to preserve visibility.
+
+The admin-only Permission Manager is available from Members. It supports role
+templates, inherited/granted/denied states, resource scopes, category changes,
+and resetting member overrides. Changes are saved explicitly and audited with
+actor, target, key, old/new effects, and timestamp.

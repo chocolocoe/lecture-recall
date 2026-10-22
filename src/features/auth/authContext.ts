@@ -13,9 +13,8 @@ export interface AuthContextValue {
   identityError: string | null
   authMessage: string | null
   refreshIdentity: () => Promise<void>
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signIn: (username: string, password: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<{ error: Error | null }>
-  requestPasswordReset: (email: string) => Promise<{ error: Error | null }>
   updatePassword: (password: string) => Promise<{ error: Error | null }>
 }
 

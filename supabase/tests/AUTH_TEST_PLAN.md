@@ -1,43 +1,55 @@
-# Phase 3 authentication verification plan
+# Username account and interface checks
 
-The repository currently has no frontend test runner or configured Supabase
-project, so these checks are manual and have not been executed. Run them against
-a disposable local Supabase stack after applying the migrations, deploying
-`invite-member`, and configuring redirect URLs and email delivery.
+The automated local account and Edge Function checks are in
+`scripts/test-local-auth.mjs`. Run them against a running local Supabase stack
+with `npx supabase functions serve` active:
 
-## Session and routes
+```powershell
+npm.cmd run test:local-auth
+```
 
-- With a signed-out browser, open `/`, `/lessons`, and `/assignments` directly.
-  Each route should redirect to `/login`, and successful sign-in should return
-  to the originally requested path.
-- Sign in with a valid student, teacher, and administrator account. Confirm the
-  displayed role and classroom come from the database membership, and that
-  changing the URL or local storage cannot change the role.
-- Refresh each dashboard and confirm the Supabase session is restored before
-  protected content renders.
-- Sign out, then use browser back and directly revisit a protected route. The
-  route should return to sign-in.
-- Expire/revoke a session in a disposable project and confirm protected content
-  stops rendering and the user is prompted to sign in again.
-- Sign in with an account whose profile is missing, then one with no membership,
-  then one with a membership whose classroom is not visible. Each should show a
-  setup/access error and offer retry and sign-out, without rendering a
-  role-specific dashboard.
-- Disable or misconfigure the frontend Supabase URL/key and confirm `/login`
-  displays setup instructions and does not expose a demo sign-in.
+The script creates uniquely named temporary users and classrooms, exercises
+admin, teacher, and student login/logout/login cycles and protected account
+operations, private multi-file student note uploads and cleanup, note review and
+correction, assignment response persistence across deadline edits, and
+cross-classroom attachment denial. It cleans up only test data it created and refuses to run if
+the Supabase API URL is not localhost/127.0.0.1. Do not use `supabase db reset`
+to run these checks.
 
-## Password and invitation flows
+## Browser checks
 
-- Request password recovery, use the delivered link before expiry, set a new
-  password, and sign in with it. Also verify an expired recovery link cannot
-  complete password setup.
-- As a classroom administrator, invite a new student and teacher. Confirm each
-  receives a link to `/login?flow=invite`, can set a password, and reaches the
-  assigned classroom after setup.
-- Call `invite-member` as a student, teacher, unauthenticated user, and
-  administrator from a different classroom. Each request must be denied and
-  must create neither an invitation nor a membership.
-- Attempt to invite the `admin` role and confirm the request is rejected.
-- Confirm the Edge Function fails closed when its server secrets or configured
-  `APP_SITE_URL` are invalid. Verify no privileged secret appears in built
-  frontend assets or `VITE_` variables.
+Use separate local test accounts and verify:
+
+- Username/password sign-in, session restoration after refresh, logout, and a
+  second login for each role.
+- Students can view classroom content, submit notes, and update their own
+  assignment responses and completion progress; teachers can manage academic
+  content, open pending attachments, and review another member's contribution;
+  admins can manage the classroom and its members.
+- Students can submit a titled note with multiple private files, remove selected
+  files before submission, correct a rejected note, and cannot change a note
+  after approval. Teachers can approve the correction and see its authorized
+  attachments.
+- Members cannot change their own username or role. Admin username changes and
+  password resets take effect, and no email address, invitation link, or
+  recovery link is displayed.
+- The member table is one compact row per account on desktop, scrolls or adapts
+  on mobile, filters by name and role, and requires confirmation before delete.
+- Profile menu opens and closes with outside click and Escape, navigates to
+  Profile and Settings, and signs out to Login.
+- Light, dark, and system themes apply to login, protected pages, forms,
+  dialogs, tables, and menus; the chosen preference survives refresh and system
+  changes while System is selected.
+- A classroom admin can edit the existing classroom name/description. A
+  teacher and student cannot change those settings.
+- The admin-only Permission Manager displays inherited, granted, and denied
+  permissions; supports resource-specific grants and role templates; confirms
+  sensitive grants; saves and resets overrides; and is unavailable to teachers
+  and students. Verify grants and revocations take effect in an already-open
+  student session without changing the student's role.
+- A teacher can publish/unpublish a lesson. Students immediately lose access
+  to unpublished lessons, while an explicit lesson-view grant can authorize a
+  selected unpublished lesson.
+
+The browser checks require a browser session and are not covered by the
+headless database and Edge Function scripts.

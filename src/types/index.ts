@@ -6,7 +6,7 @@ export type ContributionStatus = 'pending' | 'approved' | 'rejected'
 
 export interface Profile {
   id: string
-  email: string
+  username: string
   full_name: string
   display_name?: string | null
   avatar_url?: string | null
@@ -46,6 +46,7 @@ export interface Lesson {
   title: string
   description?: string | null
   lesson_date: string
+  published: boolean
   created_by: string
   created_at: string
   updated_at: string
@@ -55,6 +56,7 @@ export interface LessonContribution {
   id: string
   lesson_id: string
   submitted_by: string
+  title: string | null
   content: string
   status: ContributionStatus
   reviewed_by?: string | null
